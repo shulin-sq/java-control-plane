@@ -3,6 +3,7 @@ package io.envoyproxy.controlplane.cache;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Any;
 import com.google.protobuf.Duration;
+import com.google.protobuf.UInt32Value;
 import com.google.protobuf.util.Durations;
 import io.envoyproxy.envoy.config.cluster.v3.Cluster;
 import io.envoyproxy.envoy.config.core.v3.Address;
@@ -12,8 +13,10 @@ import io.envoyproxy.envoy.config.core.v3.ApiVersion;
 import io.envoyproxy.envoy.config.core.v3.ConfigSource;
 import io.envoyproxy.envoy.config.core.v3.DataSource;
 import io.envoyproxy.envoy.config.core.v3.GrpcService;
+import io.envoyproxy.envoy.config.core.v3.HealthCheck;
 import io.envoyproxy.envoy.config.core.v3.SocketAddress;
 import io.envoyproxy.envoy.config.core.v3.SocketAddress.Protocol;
+import io.envoyproxy.envoy.config.core.v3.TypedExtensionConfig;
 import io.envoyproxy.envoy.config.endpoint.v3.ClusterLoadAssignment;
 import io.envoyproxy.envoy.config.endpoint.v3.Endpoint;
 import io.envoyproxy.envoy.config.endpoint.v3.LbEndpoint;
@@ -29,6 +32,7 @@ import io.envoyproxy.envoy.config.route.v3.VirtualHost;
 import io.envoyproxy.envoy.extensions.filters.http.router.v3.Router;
 import io.envoyproxy.envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager;
 import io.envoyproxy.envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager.CodecType;
+import io.envoyproxy.envoy.extensions.health_check.event_sinks.file.v3.HealthCheckEventFileSink;
 import io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.Secret;
 import io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.TlsCertificate;
 
@@ -59,6 +63,28 @@ public class TestResources {
     return Cluster.newBuilder()
         .setName(clusterName)
         .setConnectTimeout(Durations.fromSeconds(5))
+        .addHealthChecks(
+            HealthCheck.newBuilder()
+                .addEventLogger(
+                    TypedExtensionConfig.newBuilder()
+                        .setName("envoy.health_check.event_sinks.file")
+                        .setTypedConfig(Any.pack(
+                            HealthCheckEventFileSink.newBuilder()
+                                .setEventLogPath("/dev/stdout").build()))
+                        .build()
+
+                )
+                .setTimeout(Duration.newBuilder().setSeconds(5).build())
+                .setInterval(Duration.newBuilder().setSeconds(1).build())
+                .setUnhealthyThreshold(UInt32Value.of(1))
+                .setAlwaysLogHealthCheckFailures(true)
+               // .setAlwaysLogHealthCheckSuccess(true)
+                .setHealthyThreshold(UInt32Value.of(3))
+                .setHttpHealthCheck(
+                    HealthCheck.HttpHealthCheck.newBuilder()
+                        .setPath("/").build()
+                )
+        )
         .setEdsClusterConfig(
             Cluster.EdsClusterConfig.newBuilder()
                 .setEdsConfig(edsSource)
@@ -98,6 +124,27 @@ public class TestResources {
                                                         .setPortValue(port)
                                                         .setProtocolValue(Protocol.TCP_VALUE)))))))
         .build();
+  }
+
+  public static ClusterLoadAssignment createCLA(String clusterName, String address, int port, int priority) {
+    return ClusterLoadAssignment.newBuilder()
+        .setClusterName(clusterName)
+        .addEndpoints(
+            LocalityLbEndpoints.newBuilder()
+                .setPriority(priority)
+                .addLbEndpoints(
+                  LbEndpoint.newBuilder()
+                      .setEndpoint(
+                          Endpoint.newBuilder()
+                              .setAddress(
+                                  Address.newBuilder()
+                                      .setSocketAddress(
+                                          SocketAddress.newBuilder()
+                                              .setAddress(address)
+                                              .setPortValue(port)
+                                              .setProtocolValue(Protocol.TCP_VALUE)))))
+
+        ).build();
   }
 
   /**

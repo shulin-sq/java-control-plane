@@ -28,9 +28,11 @@ public class TestMain {
         GROUP,
         Snapshot.create(
             ImmutableList.of(
-                TestResources.createCluster(
-                    "cluster0", "127.0.0.1", 1234, Cluster.DiscoveryType.STATIC)),
-            ImmutableList.of(),
+                TestResources.createCluster("httpbin")),
+
+            ImmutableList.of(
+                TestResources.createCLA("httpbin", "34.194.112.169", 80, 0)
+            ),
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of(),
@@ -56,17 +58,29 @@ public class TestMain {
 
     Thread.sleep(10000);
 
-    cache.setSnapshot(
-        GROUP,
-        Snapshot.create(
-            ImmutableList.of(
-                TestResources.createCluster(
-                    "cluster1", "127.0.0.1", 1235, Cluster.DiscoveryType.STATIC)),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            "1"));
+
+    for (int i = 1 ; i < 100 ; i ++) {
+
+      System.out.println("deliverying config version " + i);
+
+
+      cache.setSnapshot(
+          GROUP,
+          Snapshot.create(
+              ImmutableList.of(
+                  TestResources.createCluster("httpbin")),
+              ImmutableList.of(
+                  TestResources.createCLA("httpbin", "34.194.112.169", 80, i % 2)
+              ),
+              ImmutableList.of(),
+              ImmutableList.of(),
+              ImmutableList.of(),
+              String.valueOf(i)));
+
+      Thread.sleep(2000);
+
+    }
+
 
     server.awaitTermination();
   }
